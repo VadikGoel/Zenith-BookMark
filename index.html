@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zenith Cloud Pro</title>
+    <style>
+        :root {
+            --bg: #0b0e14; --sidebar: #0d1117; --card: #161b22; 
+            --primary: #5865f2; --text: #e6edf3; --border: #30363d; --danger: #f85149;
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Navigation Sidebar */
+        .sidebar { width: 220px; background: var(--sidebar); border-right: 1px solid var(--border); padding: 25px; display: flex; flex-direction: column; gap: 10px; }
+        .logo { font-size: 20px; font-weight: 800; color: var(--primary); margin-bottom: 30px; letter-spacing: 1px; }
+        .nav-btn { font-size: 14px; color: #8b949e; cursor: pointer; padding: 12px; border-radius: 10px; transition: 0.3s; border: none; background: none; text-align: left; width: 100%; display: flex; align-items: center; gap: 10px; }
+        .nav-btn:hover, .nav-btn.active { background: var(--card); color: var(--text); }
+
+        /* Main Content View */
+        .main { flex: 1; padding: 40px; display: flex; flex-direction: column; overflow-y: auto; }
+        .view-panel { display: none; }
+        .view-panel.active { display: block; }
+
+        .top-bar { display: flex; gap: 12px; margin-bottom: 40px; }
+        input { flex: 1; padding: 14px 20px; background: #0d1117; border: 1px solid var(--border); color: var(--text); border-radius: 12px; outline: none; }
+        .add-btn { padding: 12px 25px; background: var(--primary); border: none; color: white; border-radius: 12px; cursor: pointer; font-weight: 600; }
+
+        /* Folder & Timeline Logic */
+        .folder-header { 
+            display: flex; align-items: center; gap: 10px; cursor: pointer; 
+            padding: 12px; margin-top: 15px; border-radius: 8px; 
+            font-weight: 600; color: #8b949e; user-select: none;
+        }
+        .folder-header:hover { background: rgba(255,255,255,0.05); color: white; }
+        .folder-header::before { content: '▼'; font-size: 10px; transition: 0.3s; }
+        .folder-header.collapsed::before { transform: rotate(-90deg); }
+        .folder-content.hidden { display: none; }
+
+        /* Single Line Bookmark Row */
+        .bookmark-row { 
+            display: flex; align-items: center; gap: 15px; background: var(--card); 
+            padding: 12px 20px; border-radius: 12px; margin-bottom: 8px; 
+            border: 1px solid var(--border); transition: 0.3s; margin-left: 20px;
+        }
+        .bookmark-row:hover { border-color: var(--primary); transform: translateX(5px); }
+        .link-url { flex: 1; color: var(--text); text-decoration: none; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .del-btn { background: none; border: none; color: #484f58; cursor: pointer; font-size: 18px; }
+
+        #auth_screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; flex-direction: column; }
+    </style>
+</head>
+<body>
+
+<div id="auth_screen">
+    <div class="logo">ZENITH CLOUD</div>
+    <button class="add-btn" id="loginBtn" style="height: 50px;">Login with Google</button>
+</div>
+
+<div class="sidebar">
+    <div class="logo">ZENITH</div>
+    <button class="nav-btn active" onclick="showView('dashboard')">🏠 Dashboard</button>
+    <button class="nav-btn" onclick="showView('settings')">⚙️ Settings</button>
+    <button class="nav-btn" style="margin-top: auto; color: var(--danger);" id="logoutBtn">🚪 Logout</button>
+</div>
+
+<div class="main">
+    <div id="dashboard" class="view-panel active">
+        <div class="top-bar">
+            <input type="text" id="linkInput" placeholder="New link goes to top of the current day...">
+            <button class="add-btn" id="addBtn">Add to Cloud</button>
+        </div>
+        <div id="timeline-container"></div>
+    </div>
+
+    <div id="settings" class="view-panel">
+        <h2>Settings</h2>
+        <div style="background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+            <button class="add-btn" style="background: #238636;" onclick="exportData()">📥 Export Backup (JSON)</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+    const CLIENT_ID = '473728201326-h8akh7nju8palihnuopd19qpffm2vdi6.apps.googleusercontent.com'; 
+    const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+    let accessToken = null, fileId = null, bookmarks = [], client = null;
+
+    function showView(viewId) {
+        document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+    }
+
+    function initGSI() {
+        if (typeof google !== 'undefined') {
+            client = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID, scope: SCOPES,
+                callback: (res) => {
+                    if (res.access_token) {
+                        accessToken = res.access_token;
+                        document.getElementById("auth_screen").style.display = "none";
+                        initDriveFile();
+                    }
+                },
+            });
+        } else { setTimeout(initGSI, 100); }
+    }
+    initGSI();
+
+    document.getElementById("loginBtn").onclick = () => client.requestAccessToken();
+
+    async function initDriveFile() {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='zenith_v5.json'&spaces=appDataFolder`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const data = await res.json();
+        if (data.files?.length > 0) { fileId = data.files[0].id; loadData(); } 
+        else { createInitialFile(); }
+    }
+
+    async function loadData() {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        bookmarks = await res.json();
+        render();
+    }
+
+    async function createInitialFile() {
+        const metadata = { name: 'zenith_v5.json', parents: ['appDataFolder'] };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([JSON.stringify([])], { type: 'application/json' }));
+        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: form
+        });
+        const data = await res.json();
+        fileId = data.id; render();
+    }
+
+    async function sync() {
+        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+            method: 'PATCH', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(bookmarks)
+        });
+    }
+
+    // Toggle Folders
+    window.toggleGroup = (e) => {
+        const header = e.currentTarget;
+        const content = header.nextElementSibling;
+        header.classList.toggle('collapsed');
+        content.classList.toggle('hidden');
+    };
+
+    function render() {
+        const container = document.getElementById("timeline-container");
+        container.innerHTML = "";
+        
+        // Grouping logic (Year > Month > Date)
+        const tree = {};
+        bookmarks.forEach(b => {
+            const d = new Date(b.id);
+            const y = d.getFullYear(), m = d.toLocaleString('default', { month: 'long' }), day = d.getDate();
+            if (!tree[y]) tree[y] = {};
+            if (!tree[y][m]) tree[y][m] = {};
+            if (!tree[y][m][day]) tree[y][m][day] = [];
+            tree[y][m][day].push(b);
+        });
+
+        // Sort Years & Months (Newest Top)
+        Object.keys(tree).sort((a,b) => b-a).forEach(y => {
+            let yHtml = `<div class="folder-header" onclick="toggleGroup(event)">📅 ${y}</div><div class="folder-content">`;
+            Object.keys(tree[y]).reverse().forEach(m => {
+                yHtml += `<div class="folder-header" onclick="toggleGroup(event)" style="margin-left:15px;">📂 ${m}</div><div class="folder-content" style="margin-left:15px;">`;
+                Object.keys(tree[y][m]).sort((a,b) => b-a).forEach(day => {
+                    yHtml += `<div class="folder-header" onclick="toggleGroup(event)" style="margin-left:30px;">📍 Day ${day}</div><div class="folder-content" style="margin-left:30px;">`;
+                    
+                    // Newest link in the specific day goes to top
+                    tree[y][m][day].reverse().forEach(b => {
+                        yHtml += `
+                            <div class="bookmark-row">
+                                <a href="${b.url}" target="_blank" class="link-url">${b.url}</a>
+                                <button class="del-btn" onclick="deleteItem(${b.id})">×</button>
+                            </div>`;
+                    });
+                    yHtml += `</div>`;
+                });
+                yHtml += `</div>`;
+            });
+            yHtml += `</div>`;
+            container.innerHTML += yHtml;
+        });
+    }
+
+    window.deleteItem = (id) => { bookmarks = bookmarks.filter(b => b.id !== id); render(); sync(); };
+
+    document.getElementById("addBtn").onclick = () => {
+        const input = document.getElementById("linkInput");
+        let url = input.value.trim();
+        if(!url) return;
+        if(!url.startsWith('http')) url = 'https://' + url;
+        bookmarks.push({ url, id: Date.now() });
+        input.value = ""; render(); sync();
+    };
+
+    function exportData() {
+        const blob = new Blob([JSON.stringify(bookmarks, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'zenith_backup.json';
+        a.click();
+    }
+
+    document.getElementById("logoutBtn").onclick = () => location.reload();
+</script>
+</body>
+</html>
