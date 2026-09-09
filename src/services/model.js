@@ -24,13 +24,16 @@ export function normalizeDocument(value) {
   if (!Object.values(DOCUMENT_TYPES).includes(inferredType)) return null
   const now = Date.now()
   const createdAt = Number(value.createdAt) || now
+  const updatedAt = Number(value.updatedAt) || createdAt
+  const deletedAt = Number(value.deletedAt) || 0
   return {
     ...value,
     id: value.id || crypto.randomUUID(),
     type: inferredType,
     title: value.title || (inferredType === DOCUMENT_TYPES.BOOKMARK ? value.url : 'Untitled'),
     createdAt,
-    updatedAt: Number(value.updatedAt) || createdAt,
+    updatedAt,
+    ...(deletedAt > 0 ? { deletedAt } : {}),
   }
 }
 
