@@ -3,7 +3,7 @@ import { decodeShareDocument, encodeShareDocument } from './services/share'
 import { createGoogleDriveProvider, localStorageProvider } from './services/storage'
 import { requestDriveToken, revokeDriveToken } from './services/auth'
 import { createDocument, DOCUMENT_TYPES } from './services/model'
-import { mergeDocuments } from './services/sync'
+import { mergeDocuments, visibleDocuments } from './services/sync'
 
 const nav = [{ id: 'all', label: 'All bookmarks', icon: '⌁' }, { id: 'favorites', label: 'Favorites', icon: '★' }, { id: 'today', label: 'Today', icon: '◷' }]
 function favicon(url) { try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64` } catch { return '' } }
@@ -74,15 +74,16 @@ export default function App() {
 
   const save = async next => { await saveLocal(next); if (drive) await syncNow(drive, next) }
   const add = async () => { let url = input.trim(); if (!url) return; if (!/^https?:\/\//i.test(url)) url = `https://${url}`; try { new URL(url) } catch { return flash('Enter a valid URL') }; const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url, title: domain(url), favorite: false }); await save([item, ...items]); setInput(''); flash('Bookmark saved') }
-  const remove = async id => { await save(items.filter(x => x.id !== id)); flash('Bookmark removed') }
+  const remove = async id => { const now = Date.now(); await save(items.map(x => x.id === id ? { ...x, deletedAt: now, updatedAt: now } : x)); flash('Bookmark removed') }
   const toggle = async id => { await save(items.map(x => x.id === id ? { ...x, favorite: !x.favorite, updatedAt: Date.now() } : x)) }
   const share = async item => { try { const payload = await encodeShareDocument({ type: DOCUMENT_TYPES.BOOKMARK, title: item.title, url: item.url, createdAt: item.createdAt }); await copyText(`${location.origin}/s/${payload}`); flash('Portable share link copied') } catch { flash('Could not create share link') } }
-  const saveShared = async document => { const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url: document.url, title: document.title || domain(document.url), favorite: false }); const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url)]; await localStorageProvider.save(next); if (drive) await drive.save(next) }
-  const filtered = useMemo(() => items.filter(x => { const q = query.toLowerCase(), matches = !q || x.url.toLowerCase().includes(q) || x.title.toLowerCase().includes(q), today = new Date(x.createdAt).toDateString() === new Date().toDateString(); return matches && (view === 'all' || (view === 'favorites' && x.favorite) || (view === 'today' && today)) }), [items, query, view])
+  const saveShared = async document => { const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url: document.url, title: document.title || domain(document.url), favorite: false }); const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url || x.deletedAt)]; await localStorageProvider.save(next); if (drive) await drive.save(next) }
+  const activeItems = useMemo(() => visibleDocuments(items), [items])
+  const filtered = useMemo(() => activeItems.filter(x => { const q = query.toLowerCase(), matches = !q || x.url.toLowerCase().includes(q) || x.title.toLowerCase().includes(q), today = new Date(x.createdAt).toDateString() === new Date().toDateString(); return matches && (view === 'all' || (view === 'favorites' && x.favorite) || (view === 'today' && today)) }), [activeItems, query, view])
 
   if (shared) return <SharedView document={shared} onSave={saveShared} />
   return <div className="app">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><div className="nav">{nav.map(n => <button key={n.id} className={view === n.id ? 'active' : ''} onClick={() => setView(n.id)}><b>{n.icon}</b>{n.label}{n.id === 'all' && <em>{items.length}</em>}</button>)}</div><div className="side-bottom"><button onClick={signedIn ? signOut : signIn}>{signedIn ? `✓ ${profile?.email || 'Disconnect Google Drive'}` : '☁ Connect Google Drive'}</button><div className="storage"><span></span><div><strong>{signedIn ? 'Cloud vault' : 'Local vault'}</strong><small>{syncing ? 'Syncing…' : signedIn ? 'Private Google Drive storage' : 'Works offline'}</small></div></div></div></aside>
+    <aside className="sidebar"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><div className="nav">{nav.map(n => <button key={n.id} className={view === n.id ? 'active' : ''} onClick={() => setView(n.id)}><b>{n.icon}</b>{n.label}{n.id === 'all' && <em>{activeItems.length}</em>}</button>)}</div><div className="side-bottom"><button onClick={signedIn ? signOut : signIn}>{signedIn ? `✓ ${profile?.email || 'Disconnect Google Drive'}` : '☁ Connect Google Drive'}</button><div className="storage"><span></span><div><strong>{signedIn ? 'Cloud vault' : 'Local vault'}</strong><small>{syncing ? 'Syncing…' : signedIn ? 'Private Google Drive storage' : 'Works offline'}</small></div></div></div></aside>
     <main><header><div><p className="eyebrow">YOUR SPACE</p><h1>{view === 'all' ? 'Bookmarks' : nav.find(n => n.id === view)?.label}</h1></div><div className="avatar">{profile?.name?.[0] || 'Z'}</div></header>
       <section className="hero"><div><span className="spark">✦</span><h2>Capture the web.<br/><i>Keep what matters.</i></h2><p>A private home for your links today, with notes, pages and whiteboards coming next.</p></div><div className="hero-orb"><span>✦</span></div></section>
       <div className="toolbar"><div className="search"><span>⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search your bookmarks..."/><kbd>⌘ K</kbd></div></div>
