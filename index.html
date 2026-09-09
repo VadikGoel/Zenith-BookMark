@@ -1,69 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0b1020">
-<title>Zenith — Bookmark Cloud</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root{--bg:#070a12;--panel:#0d1220;--panel2:#11182a;--text:#f4f7ff;--muted:#8d98ad;--line:rgba(255,255,255,.08);--accent:#7c5cff;--accent2:#4c9aff;--danger:#ff5d73;--shadow:0 20px 60px rgba(0,0,0,.35)}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,system-ui,sans-serif;background:radial-gradient(circle at 15% 0%,rgba(124,92,255,.16),transparent 35%),radial-gradient(circle at 90% 20%,rgba(76,154,255,.1),transparent 30%),var(--bg);color:var(--text)}
-body{display:flex;min-height:100vh;overflow:hidden}.glass{background:rgba(13,18,32,.78);backdrop-filter:blur(18px);border:1px solid var(--line)}
-.sidebar{width:250px;flex:0 0 250px;padding:26px 18px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);background:rgba(7,10,18,.82)}
-.brand{display:flex;align-items:center;gap:12px;padding:5px 10px 32px}.brand-mark{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 30px rgba(124,92,255,.35);font-weight:800}.brand strong{font-size:17px;letter-spacing:.2px}.brand span{display:block;font-size:10px;color:var(--muted);letter-spacing:1.7px;margin-top:3px}
-.nav-btn{width:100%;border:0;background:transparent;color:var(--muted);padding:12px 14px;border-radius:12px;text-align:left;font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:11px;transition:.2s}.nav-btn:hover{background:rgba(255,255,255,.045);color:var(--text)}.nav-btn.active{background:linear-gradient(90deg,rgba(124,92,255,.2),rgba(124,92,255,.07));color:#fff;box-shadow:inset 3px 0 var(--accent)}.nav-icon{width:20px;text-align:center}.logout{margin-top:auto;color:#ff8293}.logout:hover{background:rgba(255,93,115,.08);color:#ff9aa8}
-.main{flex:1;min-width:0;overflow:auto;padding:34px clamp(20px,4vw,58px)}.content{max-width:1100px;margin:auto}.topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:25px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--accent);font-weight:700}.title{font-size:30px;letter-spacing:-1px;margin:5px 0 7px}.subtitle{color:var(--muted);font-size:13px;margin:0}.count{font-size:12px;color:var(--muted);padding:9px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.025)}
-.searchbar{display:flex;gap:10px;padding:8px;border-radius:16px;margin-bottom:25px;box-shadow:var(--shadow)}input{font:inherit;color:var(--text);background:transparent;border:0;outline:0;width:100%;padding:12px 14px;font-size:14px}input::placeholder{color:#667188}.add-btn{border:0;border-radius:11px;padding:0 20px;height:44px;background:linear-gradient(135deg,var(--accent),#5e83ff);color:white;font:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 10px 25px rgba(92,83,255,.25);white-space:nowrap;transition:.2s}.add-btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
-.timeline{display:flex;flex-direction:column;gap:9px}.year{margin-top:8px}.folder-header{display:flex;align-items:center;gap:10px;cursor:pointer;padding:11px 13px;border-radius:12px;color:#b6c0d2;font-size:12px;font-weight:700;user-select:none}.folder-header:hover{background:rgba(255,255,255,.035);color:#fff}.folder-header .chevron{font-size:9px;transition:.2s;color:#6f7a90}.folder-header.collapsed .chevron{transform:rotate(-90deg)}.folder-content.hidden{display:none}.month{margin-left:14px}.day{margin-left:28px}.day-label{color:#8792a8;font-weight:600}.bookmark-list{margin-left:42px;display:flex;flex-direction:column;gap:7px}
-.bookmark-row{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 10px 8px 14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(100deg,rgba(17,24,42,.9),rgba(13,18,32,.8));transition:.2s}.bookmark-row:hover{border-color:rgba(124,92,255,.45);transform:translateX(3px);box-shadow:0 10px 30px rgba(0,0,0,.16)}.favicon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(124,92,255,.12);color:#a895ff;font-weight:800;font-size:13px;flex:0 0 34px}.bookmark-main{min-width:0;flex:1}.link-url{display:block;color:#eaf0ff;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.link-url:hover{color:#b9adff}.link-domain{color:#68758d;font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.open-btn,.del-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:transparent;color:#7e8aa0;cursor:pointer;display:grid;place-items:center;font-size:15px}.open-btn:hover{background:rgba(76,154,255,.1);color:#8dbdff}.del-btn:hover{background:rgba(255,93,115,.1);color:#ff7f90;border-color:rgba(255,93,115,.2)}
-.empty{padding:65px 20px;text-align:center;border:1px dashed var(--line);border-radius:18px;color:var(--muted)}.empty-icon{font-size:32px;margin-bottom:12px}.empty strong{display:block;color:#dce3f2;margin-bottom:6px}.empty p{font-size:12px;margin:0}.settings-card{padding:22px;border-radius:18px}.settings-card h3{margin:0 0 7px;font-size:15px}.settings-card p{margin:0 0 18px;color:var(--muted);font-size:12px}.secondary{background:rgba(255,255,255,.05);box-shadow:none}
-#auth_screen{position:fixed;inset:0;background:radial-gradient(circle at 50% 25%,rgba(124,92,255,.2),transparent 38%),var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000}.auth-card{width:min(420px,calc(100% - 32px));padding:42px 34px;border-radius:24px;text-align:center;box-shadow:var(--shadow)}.auth-logo{width:62px;height:62px;margin:0 auto 18px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));font-size:24px;font-weight:800;box-shadow:0 18px 45px rgba(124,92,255,.35)}.auth-card h1{margin:0;font-size:25px;letter-spacing:-.7px}.auth-card p{color:var(--muted);font-size:13px;line-height:1.6;margin:9px 0 25px}.auth-card .add-btn{width:100%;height:48px}.status{font-size:11px;color:var(--muted);margin-top:13px}
-.toast{position:fixed;right:22px;bottom:22px;padding:12px 16px;border-radius:12px;background:#151d31;border:1px solid var(--line);box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(12px);pointer-events:none;transition:.25s}.toast.show{opacity:1;transform:none}@media(max-width:760px){body{overflow:auto}.sidebar{width:72px;flex-basis:72px;padding:18px 10px}.brand{justify-content:center;padding:4px 0 25px}.brand>div:last-child,.nav-btn span:not(.nav-icon){display:none}.nav-btn{justify-content:center;padding:13px}.main{padding:24px 14px}.topbar{display:block}.count{display:inline-block;margin-top:14px}.searchbar{padding:6px}.add-btn{padding:0 13px}.bookmark-list{margin-left:18px}.month{margin-left:7px}.day{margin-left:15px}}
-</style>
-</head>
-<body>
-<div id="auth_screen">
-  <div class="auth-card glass">
-    <div class="auth-logo">Z</div><h1>Welcome to Zenith</h1>
-    <p>Your bookmarks, organized into a clean timeline and synced privately with your Google Drive app data.</p>
-    <button class="add-btn" id="loginBtn">Continue with Google</button><div class="status" id="authStatus">Secure sign-in required</div>
-  </div>
-</div>
-<aside class="sidebar">
-  <div class="brand"><div class="brand-mark">Z</div><div><strong>ZENITH</strong><span>BOOKMARK CLOUD</span></div></div>
-  <button class="nav-btn active" onclick="showView('dashboard',this)"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
-  <button class="nav-btn" onclick="showView('settings',this)"><span class="nav-icon">⚙</span><span>Settings</span></button>
-  <button class="nav-btn logout" id="logoutBtn"><span class="nav-icon">↪</span><span>Logout</span></button>
-</aside>
-<main class="main"><div class="content">
-  <section id="dashboard" class="view-panel">
-    <div class="topbar"><div><div class="eyebrow">Your library</div><h1 class="title">Bookmark timeline</h1><p class="subtitle">Everything saved, neatly organized by when you added it.</p></div><div class="count" id="bookmarkCount">0 bookmarks</div></div>
-    <div class="searchbar glass"><input id="linkInput" autocomplete="off" placeholder="Paste a URL and press Enter…"><button class="add-btn" id="addBtn">＋ Add bookmark</button></div>
-    <div id="timeline-container" class="timeline"></div>
-  </section>
-  <section id="settings" class="view-panel" style="display:none"><div class="topbar"><div><div class="eyebrow">Preferences</div><h1 class="title">Settings</h1><p class="subtitle">Manage your local backup and session.</p></div></div><div class="settings-card glass"><h3>Backup your bookmarks</h3><p>Download a JSON copy that you can keep as an offline backup.</p><button class="add-btn secondary" onclick="exportData()">↓ Export JSON backup</button></div></section>
-</div></main><div id="toast" class="toast"></div>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script>
-const CLIENT_ID='473728201326-h8akh7nju8palihnuopd19qpffm2vdi6.apps.googleusercontent.com',SCOPES='https://www.googleapis.com/auth/drive.appdata';
-let accessToken=null,fileId=null,bookmarks=[],client=null;
-const $=id=>document.getElementById(id);
-function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function showView(id,btn){document.querySelectorAll('.view-panel').forEach(x=>x.style.display='none');$(id).style.display='block';document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active')}
-function initGSI(){if(window.google?.accounts?.oauth2){client=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async r=>{if(r.access_token){accessToken=r.access_token;$('auth_screen').style.display='none';await initDriveFile()}}})}else setTimeout(initGSI,100)}initGSI();
-$('loginBtn').onclick=()=>client?client.requestAccessToken():toast('Google sign-in is still loading…');
-async function initDriveFile(){try{const r=await fetch("https://www.googleapis.com/drive/v3/files?q=name='zenith_v5.json'&spaces=appDataFolder&fields=files(id,name)",{headers:{Authorization:`Bearer ${accessToken}`}});if(!r.ok)throw Error();const d=await r.json();if(d.files?.length){fileId=d.files[0].id;await loadData()}else await createInitialFile()}catch(e){toast('Could not connect to Drive');$('auth_screen').style.display='flex';$('authStatus').textContent='Drive connection failed'}}
-async function loadData(){const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{headers:{Authorization:`Bearer ${accessToken}`}});if(!r.ok)throw Error();bookmarks=await r.json();if(!Array.isArray(bookmarks))bookmarks=[];render()}
-async function createInitialFile(){const metadata={name:'zenith_v5.json',parents:['appDataFolder']},form=new FormData();form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));form.append('file',new Blob(['[]'],{type:'application/json'}));const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:`Bearer ${accessToken}`},body:form});if(!r.ok)throw Error();const d=await r.json();fileId=d.id;bookmarks=[];render()}
-async function sync(){if(!fileId)return;const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{method:'PATCH',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(bookmarks)});if(!r.ok)toast('Sync failed — try again')}
-window.toggleGroup=e=>{const h=e.currentTarget,c=h.nextElementSibling;h.classList.toggle('collapsed');c.classList.toggle('hidden')};
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function domain(url){try{return new URL(url).hostname.replace(/^www\./,'')}catch{return url}}
-function render(){const c=$('timeline-container');c.innerHTML='';$('bookmarkCount').textContent=`${bookmarks.length} bookmark${bookmarks.length===1?'':'s'}`;if(!bookmarks.length){c.innerHTML='<div class="empty"><div class="empty-icon">✦</div><strong>Your library is empty</strong><p>Paste your first link above to start building your timeline.</p></div>';return}const tree={};bookmarks.forEach(b=>{const d=new Date(b.id),y=d.getFullYear(),m=d.toLocaleString('en',{month:'long'}),day=d.getDate();tree[y]??={};tree[y][m]??={};tree[y][m][day]??=[];tree[y][m][day].push(b)});Object.keys(tree).sort((a,b)=>b-a).forEach(y=>{const year=document.createElement('div');year.className='year';year.innerHTML=`<div class="folder-header" onclick="toggleGroup(event)"><span class="chevron">▼</span><span>▣ ${y}</span></div><div class="folder-content"></div>`;const yc=year.lastElementChild;Object.keys(tree[y]).sort((a,b)=>new Date(`${a} 1, ${y}`)-new Date(`${b} 1, ${y}`)).reverse().forEach(m=>{const mo=document.createElement('div');mo.className='month';mo.innerHTML=`<div class="folder-header" onclick="toggleGroup(event)"><span class="chevron">▼</span><span>▱ ${m}</span></div><div class="folder-content"></div>`;const mc=mo.lastElementChild;Object.keys(tree[y][m]).sort((a,b)=>b-a).forEach(day=>{const da=document.createElement('div');da.className='day';const label=new Date(y,new Date(`${m} 1`).getMonth(),day).toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'});da.innerHTML=`<div class="folder-header day-label" onclick="toggleGroup(event)"><span class="chevron">▼</span><span>• ${label}</span></div><div class="folder-content bookmark-list"></div>`;const list=da.lastElementChild;tree[y][m][day].slice().sort((a,b)=>b.id-a.id).forEach(b=>{const row=document.createElement('div');row.className='bookmark-row';const dom=domain(b.url);row.innerHTML=`<div class="favicon">${esc(dom.charAt(0).toUpperCase())}</div><div class="bookmark-main"><a class="link-url" href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">${esc(b.url)}</a><div class="link-domain">${esc(dom)}</div></div><button class="open-btn" title="Open" onclick="window.open('${esc(b.url).replace(/'/g,'%27')}','_blank','noopener,noreferrer')">↗</button><button class="del-btn" title="Delete" onclick="deleteItem(${Number(b.id)})">×</button>`;list.appendChild(row)});mc.appendChild(da)});yc.appendChild(mo)});c.appendChild(year)})}
-window.deleteItem=async id=>{bookmarks=bookmarks.filter(b=>b.id!==id);render();await sync();toast('Bookmark removed')};
-async function addBookmark(){let url=$('linkInput').value.trim();if(!url)return;if(!/^https?:\/\//i.test(url))url='https://'+url;try{new URL(url)}catch{return toast('Please enter a valid URL')}bookmarks.push({url,id:Date.now()});$('linkInput').value='';render();await sync();toast('Bookmark saved')}
-$('addBtn').onclick=addBookmark;$('linkInput').addEventListener('keydown',e=>{if(e.key==='Enter')addBookmark()});
-function exportData(){const blob=new Blob([JSON.stringify(bookmarks,null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=`zenith-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(u);toast('Backup exported')}
-$('logoutBtn').onclick=()=>location.reload();showView('dashboard',document.querySelector('.nav-btn.active'));
-</script></body></html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#08090d" />
+    <meta name="description" content="Zenith — a calm home for your bookmarks, notes and ideas." />
+    <title>Zenith — Your knowledge, organized.</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
