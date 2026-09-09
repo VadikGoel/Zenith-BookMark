@@ -1,7 +1,5 @@
 const CLIENT_ID = '473728201326-h8akh7nju8palihnuopd19qpffm2vdi6.apps.googleusercontent.com'
-const SCOPE = 'https://www.googleapis.com/auth/drive.appdata'
-
-let clientPromise
+const SCOPE = 'openid email profile https://www.googleapis.com/auth/drive.appdata'
 
 function waitForGoogle() {
   return new Promise((resolve, reject) => {
@@ -17,30 +15,23 @@ function waitForGoogle() {
 
 export async function requestDriveToken(prompt = '') {
   const google = await waitForGoogle()
-  if (!clientPromise) {
-    clientPromise = new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPE,
-        callback: (response) => resolve(response),
-      })
-      client.requestAccessToken({ prompt })
+  const response = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+      callback: resolve,
     })
-  } else {
-    clientPromise = new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPE,
-        callback: resolve,
-      })
-      client.requestAccessToken({ prompt })
-    })
-  }
-  const response = await clientPromise
+    client.requestAccessToken({ prompt })
+  })
   if (!response?.access_token) throw new Error(response?.error_description || 'Google authorization failed')
-  return response.access_token
+  let profile = null
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${response.access_token}` } })
+    if (r.ok) profile = await r.json()
+  } catch {}
+  return { token: response.access_token, profile }
 }
 
 export function revokeDriveToken(token) {
-  if (token && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(token, () => {})
+  if (token && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(token, () => {})
 }
