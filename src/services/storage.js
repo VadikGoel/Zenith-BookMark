@@ -1,15 +1,59 @@
-const KEY = 'zenith-bookmarks-v1'
+import { loadOrCreateZenith, writeZenithFile } from './drive'
 
-export const localStorageProvider = {
-  async load() {
-    try { return JSON.parse(localStorage.getItem(KEY) || '[]') } catch { return [] }
-  },
-  async save(bookmarks) {
-    localStorage.setItem(KEY, JSON.stringify(bookmarks))
-  },
+const KEY = 'zenith-bookmarks-v2'
+const DB = 'zenith-local'
+const STORE = 'state'
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB, 1)
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE)
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
 }
 
-export const googleDriveProvider = {
-  async load() { throw new Error('Google Drive sync is not configured yet') },
-  async save() { throw new Error('Google Drive sync is not configured yet') },
+async function localLoad() {
+  try {
+    const db = await openDb()
+    const value = await new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(KEY)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+    return Array.isArray(value) ? value : []
+  } catch {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]') } catch { return [] }
+  }
+}
+
+async function localSave(bookmarks) {
+  const db = await openDb()
+  await new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, 'readwrite').objectStore(STORE).put(bookmarks, KEY)
+    req.onsuccess = resolve
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+}
+
+export const localStorageProvider = { load: localLoad, save: localSave }
+
+export function createGoogleDriveProvider(token) {
+  let fileId = null
+  return {
+    async load() {
+      const result = await loadOrCreateZenith(token)
+      fileId = result.fileId
+      return result.data
+    },
+    async save(data) {
+      if (!fileId) {
+        const result = await loadOrCreateZenith(token)
+        fileId = result.fileId
+      }
+      await writeZenithFile(token, fileId, data)
+    },
+  }
 }
