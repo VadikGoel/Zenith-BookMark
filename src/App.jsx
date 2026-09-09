@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { decodeShareDocument, encodeShareDocument } from './services/share'
 import { createGoogleDriveProvider, localStorageProvider } from './services/storage'
 import { requestDriveToken, revokeDriveToken } from './services/auth'
+import { createDocument, DOCUMENT_TYPES } from './services/model'
+import { mergeDocuments } from './services/sync'
 
 const nav = [{ id: 'all', label: 'All bookmarks', icon: '⌁' }, { id: 'favorites', label: 'Favorites', icon: '★' }, { id: 'today', label: 'Today', icon: '◷' }]
 function favicon(url) { try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64` } catch { return '' } }
@@ -21,7 +23,7 @@ async function copyText(value) {
 
 function SharedView({ document, onSave }) {
   const [saved, setSaved] = useState(false)
-  const item = document?.type === 'bookmark' ? document : null
+  const item = document?.type === DOCUMENT_TYPES.BOOKMARK ? document : null
   if (!item) return <div className="shared-shell"><div className="empty"><h3>Invalid Zenith share</h3><p>This link does not contain a supported document.</p></div></div>
   return <div className="shared-shell"><div className="shared-card"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><p className="eyebrow">SHARED WITH YOU</p><h1>{item.title || domain(item.url)}</h1><p className="shared-domain">{domain(item.url)}</p><a className="shared-open" href={item.url} target="_blank" rel="noreferrer">Open original link ↗</a><button className="save-share" disabled={saved} onClick={async () => { await onSave(item); setSaved(true) }}>{saved ? 'Saved to Zenith' : 'Save to my Zenith'}</button><small>This share contains the document itself. No Zenith storage is used for the shared bookmark.</small></div></div>
 }
@@ -56,10 +58,10 @@ export default function App() {
       const auth = await requestDriveToken('select_account')
       const provider = createGoogleDriveProvider(auth.token)
       const remote = await provider.load(), local = await localStorageProvider.load()
-      const merged = remote.length ? remote : local
+      const merged = mergeDocuments(local, remote)
       setDrive(provider); setDriveToken(auth.token); setProfile(auth.profile); setSignedIn(true); setItems(merged)
       await localStorageProvider.save(merged)
-      if (!remote.length && local.length) await provider.save(local)
+      if (JSON.stringify(remote) !== JSON.stringify(merged)) await provider.save(merged)
       flash(`Connected${auth.profile?.email ? ` as ${auth.profile.email}` : ''}`)
     } catch (error) { flash(error.message || 'Google sign-in failed') }
   }
@@ -71,11 +73,11 @@ export default function App() {
   }
 
   const save = async next => { await saveLocal(next); if (drive) await syncNow(drive, next) }
-  const add = async () => { let url = input.trim(); if (!url) return; if (!/^https?:\/\//i.test(url)) url = `https://${url}`; try { new URL(url) } catch { return flash('Enter a valid URL') }; const item = { id: crypto.randomUUID(), url, title: domain(url), createdAt: Date.now(), favorite: false }; await save([item, ...items]); setInput(''); flash('Bookmark saved') }
+  const add = async () => { let url = input.trim(); if (!url) return; if (!/^https?:\/\//i.test(url)) url = `https://${url}`; try { new URL(url) } catch { return flash('Enter a valid URL') }; const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url, title: domain(url), favorite: false }); await save([item, ...items]); setInput(''); flash('Bookmark saved') }
   const remove = async id => { await save(items.filter(x => x.id !== id)); flash('Bookmark removed') }
-  const toggle = async id => { await save(items.map(x => x.id === id ? { ...x, favorite: !x.favorite } : x)) }
-  const share = async item => { try { const payload = await encodeShareDocument({ type: 'bookmark', title: item.title, url: item.url, createdAt: item.createdAt }); await copyText(`${location.origin}/s/${payload}`); flash('Portable share link copied') } catch { flash('Could not create share link') } }
-  const saveShared = async document => { const item = { id: crypto.randomUUID(), url: document.url, title: document.title || domain(document.url), createdAt: Date.now(), favorite: false }; const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url)]; await localStorageProvider.save(next); if (drive) await drive.save(next) }
+  const toggle = async id => { await save(items.map(x => x.id === id ? { ...x, favorite: !x.favorite, updatedAt: Date.now() } : x)) }
+  const share = async item => { try { const payload = await encodeShareDocument({ type: DOCUMENT_TYPES.BOOKMARK, title: item.title, url: item.url, createdAt: item.createdAt }); await copyText(`${location.origin}/s/${payload}`); flash('Portable share link copied') } catch { flash('Could not create share link') } }
+  const saveShared = async document => { const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url: document.url, title: document.title || domain(document.url), favorite: false }); const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url)]; await localStorageProvider.save(next); if (drive) await drive.save(next) }
   const filtered = useMemo(() => items.filter(x => { const q = query.toLowerCase(), matches = !q || x.url.toLowerCase().includes(q) || x.title.toLowerCase().includes(q), today = new Date(x.createdAt).toDateString() === new Date().toDateString(); return matches && (view === 'all' || (view === 'favorites' && x.favorite) || (view === 'today' && today)) }), [items, query, view])
 
   if (shared) return <SharedView document={shared} onSave={saveShared} />
