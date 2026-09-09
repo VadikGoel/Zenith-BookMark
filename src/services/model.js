@@ -20,14 +20,17 @@ export function createDocument(type, fields = {}) {
 
 export function normalizeDocument(value) {
   if (!value || typeof value !== 'object') return null
-  if (!Object.values(DOCUMENT_TYPES).includes(value.type)) return null
+  const inferredType = value.type || (typeof value.url === 'string' ? DOCUMENT_TYPES.BOOKMARK : null)
+  if (!Object.values(DOCUMENT_TYPES).includes(inferredType)) return null
   const now = Date.now()
+  const createdAt = Number(value.createdAt) || now
   return {
     ...value,
     id: value.id || crypto.randomUUID(),
-    title: value.title || 'Untitled',
-    createdAt: Number(value.createdAt) || now,
-    updatedAt: Number(value.updatedAt) || Number(value.createdAt) || now,
+    type: inferredType,
+    title: value.title || (inferredType === DOCUMENT_TYPES.BOOKMARK ? value.url : 'Untitled'),
+    createdAt,
+    updatedAt: Number(value.updatedAt) || createdAt,
   }
 }
 
