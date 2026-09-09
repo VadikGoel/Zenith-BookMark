@@ -13,6 +13,10 @@ export function mergeDocuments(localValues, remoteValues) {
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+export function visibleDocuments(values) {
+  return normalizeDocuments(values).filter(document => !document.deletedAt)
+}
+
 export function hasChanges(before, after) {
   return JSON.stringify(normalizeDocuments(before)) !== JSON.stringify(normalizeDocuments(after))
 }
