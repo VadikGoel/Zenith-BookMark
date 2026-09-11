@@ -1,4 +1,4 @@
-import { normalizeDocuments } from './model'
+import { normalizeDocuments } from './model.js'
 
 function canonicalUrl(value) {
   if (typeof value !== 'string') return null
