@@ -1,5 +1,6 @@
 export const DOCUMENT_TYPES = Object.freeze({
   BOOKMARK: 'bookmark',
+  NOTE: 'note',
   PAGE: 'page',
   WHITEBOARD: 'whiteboard',
 })
