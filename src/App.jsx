@@ -3,23 +3,20 @@ import { decodeShareDocument, encodeShareDocument } from './services/share'
 import { createGoogleDriveProvider, localStorageProvider } from './services/storage'
 import { requestDriveToken, revokeDriveToken } from './services/auth'
 import { createDocument, DOCUMENT_TYPES } from './services/model'
+import { BLOCK_TYPES, createBlock, createPageBlocks } from './services/blocks'
 import { mergeDocuments, visibleDocuments } from './services/sync'
 
-const nav = [{ id: 'all', label: 'All bookmarks', icon: '⌁' }, { id: 'favorites', label: 'Favorites', icon: '★' }, { id: 'today', label: 'Today', icon: '◷' }]
+const nav = [
+  { id: 'home', label: 'Workspace', icon: '⌂' },
+  { id: 'bookmarks', label: 'Bookmarks', icon: '⌁' },
+  { id: 'notes', label: 'Notes', icon: '✎' },
+  { id: 'pages', label: 'Pages', icon: '▤' },
+  { id: 'favorites', label: 'Favorites', icon: '★' },
+  { id: 'today', label: 'Today', icon: '◷' },
+]
 function favicon(url) { try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64` } catch { return '' } }
 function domain(url) { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
-
-async function copyText(value) {
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value)
-  const area = document.createElement('textarea')
-  area.value = value
-  area.style.position = 'fixed'
-  area.style.opacity = '0'
-  document.body.appendChild(area)
-  area.select()
-  document.execCommand('copy')
-  area.remove()
-}
+async function copyText(value) { if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value); const area = document.createElement('textarea'); area.value = value; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove() }
 
 function SharedView({ document, onSave }) {
   const [saved, setSaved] = useState(false)
@@ -28,68 +25,54 @@ function SharedView({ document, onSave }) {
   return <div className="shared-shell"><div className="shared-card"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><p className="eyebrow">SHARED WITH YOU</p><h1>{item.title || domain(item.url)}</h1><p className="shared-domain">{domain(item.url)}</p><a className="shared-open" href={item.url} target="_blank" rel="noreferrer">Open original link ↗</a><button className="save-share" disabled={saved} onClick={async () => { await onSave(item); setSaved(true) }}>{saved ? 'Saved to Zenith' : 'Save to my Zenith'}</button><small>This share contains the document itself. No Zenith storage is used for the shared bookmark.</small></div></div>
 }
 
+function PageEditor({ page, onChange, onBack }) {
+  const update = patch => onChange({ ...page, ...patch, updatedAt: Date.now() })
+  const updateBlock = (id, patch) => update({ blocks: page.blocks.map(block => block.id === id ? { ...block, ...patch, updatedAt: Date.now() } : block) })
+  const addBlock = type => update({ blocks: [...page.blocks, createBlock(type)] })
+  const removeBlock = id => update({ blocks: page.blocks.filter(block => block.id !== id) })
+  return <section className="editor">
+    <div className="editor-bar"><button className="back" onClick={onBack}>← Back</button><span>{page.type === DOCUMENT_TYPES.NOTE ? 'Note' : 'Page'}</span><small>Saved locally{page.updatedAt ? ` · ${new Date(page.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</small></div>
+    <input className="page-title" value={page.title} onChange={e => update({ title: e.target.value })} placeholder="Untitled" />
+    {page.type === DOCUMENT_TYPES.NOTE ? <textarea className="note-editor" value={page.text || ''} onChange={e => update({ text: e.target.value })} placeholder="Start writing your note..." autoFocus /> : <>
+      <div className="block-list">{(page.blocks || []).map(block => <div className={`editor-block block-${block.type}`} key={block.id}>
+        {block.type === BLOCK_TYPES.DIVIDER ? <div className="divider" /> : block.type === BLOCK_TYPES.TODO ? <label className="todo-row"><input type="checkbox" checked={Boolean(block.checked)} onChange={e => updateBlock(block.id, { checked: e.target.checked })} /><input value={block.text} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="To-do item" /></label> : block.type === BLOCK_TYPES.IMAGE ? <><input value={block.url || ''} onChange={e => updateBlock(block.id, { url: e.target.value })} placeholder="Image URL" />{block.url && <img className="editor-image" src={block.url} alt="" />}</> : block.type === BLOCK_TYPES.CODE ? <textarea className="code-block" value={block.text} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="Write code..." spellCheck="false" /> : block.type === BLOCK_TYPES.HEADING ? <input className="heading-block" value={block.text} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="Heading" /> : block.type === BLOCK_TYPES.BULLET ? <input className="bullet-block" value={block.text} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="List item" /> : <textarea value={block.text} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="Start writing..." />}
+        <button className="block-delete" onClick={() => removeBlock(block.id)} aria-label="Delete block">×</button>
+      </div>)}</div>
+      <div className="block-add"><span>Add block</span><button onClick={() => addBlock(BLOCK_TYPES.TEXT)}>Text</button><button onClick={() => addBlock(BLOCK_TYPES.HEADING)}>Heading</button><button onClick={() => addBlock(BLOCK_TYPES.BULLET)}>Bullet</button><button onClick={() => addBlock(BLOCK_TYPES.TODO)}>Todo</button><button onClick={() => addBlock(BLOCK_TYPES.CODE)}>Code</button><button onClick={() => addBlock(BLOCK_TYPES.DIVIDER)}>Divider</button></div>
+    </>}
+  </section>
+}
+
 export default function App() {
-  const [shared, setShared] = useState(null), [items, setItems] = useState([]), [query, setQuery] = useState(''), [view, setView] = useState('all'), [input, setInput] = useState(''), [toast, setToast] = useState(''), [drive, setDrive] = useState(null), [driveToken, setDriveToken] = useState(null), [syncing, setSyncing] = useState(false), [signedIn, setSignedIn] = useState(false), [profile, setProfile] = useState(null)
-
-  useEffect(() => {
-    const match = location.pathname.match(/^\/s\/(.+)$/)
-    if (match) decodeShareDocument(match[1]).then(setShared).catch(() => setShared({ type: 'invalid' }))
-    localStorageProvider.load().then(setItems)
-  }, [])
-
-  useEffect(() => {
-    const onKeyDown = event => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        document.querySelector('.search input')?.focus()
-      }
-      if (event.key === 'Escape' && document.activeElement?.matches('.search input')) document.activeElement.blur()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
+  const [shared, setShared] = useState(null), [items, setItems] = useState([]), [query, setQuery] = useState(''), [view, setView] = useState('home'), [input, setInput] = useState(''), [toast, setToast] = useState(''), [drive, setDrive] = useState(null), [driveToken, setDriveToken] = useState(null), [syncing, setSyncing] = useState(false), [signedIn, setSignedIn] = useState(false), [profile, setProfile] = useState(null), [editing, setEditing] = useState(null)
+  useEffect(() => { const match = location.pathname.match(/^\/s\/(.+)$/); if (match) decodeShareDocument(match[1]).then(setShared).catch(() => setShared({ type: 'invalid' })); localStorageProvider.load().then(setItems) }, [])
+  useEffect(() => { const onKeyDown = event => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector('.search input')?.focus() } }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown) }, [])
   const flash = message => { setToast(message); setTimeout(() => setToast(''), 2200) }
   const saveLocal = async next => { setItems(next); await localStorageProvider.save(next) }
   const syncNow = async (provider, data) => { setSyncing(true); try { await provider.save(data); flash('Synced to your Google Drive') } catch (error) { flash(error.message || 'Drive sync failed') } finally { setSyncing(false) } }
-
-  const signIn = async () => {
-    try {
-      const auth = await requestDriveToken('select_account')
-      const provider = createGoogleDriveProvider(auth.token)
-      const remote = await provider.load(), local = await localStorageProvider.load()
-      const merged = mergeDocuments(local, remote)
-      setDrive(provider); setDriveToken(auth.token); setProfile(auth.profile); setSignedIn(true); setItems(merged)
-      await localStorageProvider.save(merged)
-      if (JSON.stringify(remote) !== JSON.stringify(merged)) await provider.save(merged)
-      flash(`Connected${auth.profile?.email ? ` as ${auth.profile.email}` : ''}`)
-    } catch (error) { flash(error.message || 'Google sign-in failed') }
-  }
-
-  const signOut = () => {
-    revokeDriveToken(driveToken)
-    setDrive(null); setDriveToken(null); setProfile(null); setSignedIn(false); setSyncing(false)
-    flash('Google Drive disconnected; local vault remains available')
-  }
-
+  const signIn = async () => { try { const auth = await requestDriveToken('select_account'); const provider = createGoogleDriveProvider(auth.token); const remote = await provider.load(), local = await localStorageProvider.load(); const merged = mergeDocuments(local, remote); setDrive(provider); setDriveToken(auth.token); setProfile(auth.profile); setSignedIn(true); setItems(merged); await localStorageProvider.save(merged); if (JSON.stringify(remote) !== JSON.stringify(merged)) await provider.save(merged); flash(`Connected${auth.profile?.email ? ` as ${auth.profile.email}` : ''}`) } catch (error) { flash(error.message || 'Google sign-in failed') } }
+  const signOut = () => { revokeDriveToken(driveToken); setDrive(null); setDriveToken(null); setProfile(null); setSignedIn(false); setSyncing(false); flash('Google Drive disconnected; local vault remains available') }
   const save = async next => { await saveLocal(next); if (drive) await syncNow(drive, next) }
-  const add = async () => { let url = input.trim(); if (!url) return; if (!/^https?:\/\//i.test(url)) url = `https://${url}`; try { new URL(url) } catch { return flash('Enter a valid URL') }; const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url, title: domain(url), favorite: false }); await save([item, ...items]); setInput(''); flash('Bookmark saved') }
-  const remove = async id => { const now = Date.now(); await save(items.map(x => x.id === id ? { ...x, deletedAt: now, updatedAt: now } : x)); flash('Bookmark removed') }
-  const toggle = async id => { await save(items.map(x => x.id === id ? { ...x, favorite: !x.favorite, updatedAt: Date.now() } : x)) }
+  const addBookmark = async () => { let url = input.trim(); if (!url) return; if (!/^https?:\/\//i.test(url)) url = `https://${url}`; try { new URL(url) } catch { return flash('Enter a valid URL') }; const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url, title: domain(url), favorite: false }); await save([item, ...items]); setInput(''); setView('bookmarks'); flash('Bookmark saved') }
+  const createNote = async () => { const note = createDocument(DOCUMENT_TYPES.NOTE, { title: 'Untitled note', text: '', favorite: false }); await save([note, ...items]); setEditing(note); setView('notes') }
+  const createPage = async () => { const page = createDocument(DOCUMENT_TYPES.PAGE, { title: 'Untitled page', blocks: createPageBlocks(), favorite: false }); await save([page, ...items]); setEditing(page); setView('pages') }
+  const updateEditing = async next => { setEditing(next); await save(items.map(item => item.id === next.id ? next : item)) }
+  const remove = async id => { const now = Date.now(); await save(items.map(x => x.id === id ? { ...x, deletedAt: now, updatedAt: now } : x)); if (editing?.id === id) setEditing(null); flash('Item moved to trash') }
+  const toggle = async id => await save(items.map(x => x.id === id ? { ...x, favorite: !x.favorite, updatedAt: Date.now() } : x))
   const share = async item => { try { const payload = await encodeShareDocument({ type: DOCUMENT_TYPES.BOOKMARK, title: item.title, url: item.url, createdAt: item.createdAt }); await copyText(`${location.origin}/s/${payload}`); flash('Portable share link copied') } catch { flash('Could not create share link') } }
-  const saveShared = async document => { const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url: document.url, title: document.title || domain(document.url), favorite: false }); const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url || x.deletedAt)]; await localStorageProvider.save(next); if (drive) await drive.save(next) }
+  const saveShared = async document => { const item = createDocument(DOCUMENT_TYPES.BOOKMARK, { url: document.url, title: document.title || domain(document.url), favorite: false }); const local = await localStorageProvider.load(); const next = [item, ...local.filter(x => x.url !== item.url || x.deletedAt)]; await localStorageProvider.save(next); setItems(next); if (drive) await drive.save(next) }
   const activeItems = useMemo(() => visibleDocuments(items), [items])
-  const filtered = useMemo(() => activeItems.filter(x => { const q = query.toLowerCase(), matches = !q || x.url.toLowerCase().includes(q) || x.title.toLowerCase().includes(q), today = new Date(x.createdAt).toDateString() === new Date().toDateString(); return matches && (view === 'all' || (view === 'favorites' && x.favorite) || (view === 'today' && today)) }), [activeItems, query, view])
-
+  const counts = useMemo(() => ({ bookmarks: activeItems.filter(x => x.type === DOCUMENT_TYPES.BOOKMARK).length, notes: activeItems.filter(x => x.type === DOCUMENT_TYPES.NOTE).length, pages: activeItems.filter(x => x.type === DOCUMENT_TYPES.PAGE).length }), [activeItems])
+  const filtered = useMemo(() => activeItems.filter(x => { const q = query.toLowerCase(); const text = [x.title, x.url, x.text, ...(x.blocks || []).map(b => b.text)].filter(Boolean).join(' ').toLowerCase(); const matches = !q || text.includes(q); const today = new Date(x.createdAt).toDateString() === new Date().toDateString(); return matches && (view === 'home' || (view === 'bookmarks' && x.type === DOCUMENT_TYPES.BOOKMARK) || (view === 'notes' && x.type === DOCUMENT_TYPES.NOTE) || (view === 'pages' && x.type === DOCUMENT_TYPES.PAGE) || (view === 'favorites' && x.favorite) || (view === 'today' && today)) }), [activeItems, query, view])
   if (shared) return <SharedView document={shared} onSave={saveShared} />
-  return <div className="app">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><div className="nav">{nav.map(n => <button key={n.id} className={view === n.id ? 'active' : ''} onClick={() => setView(n.id)}><b>{n.icon}</b>{n.label}{n.id === 'all' && <em>{activeItems.length}</em>}</button>)}</div><div className="side-bottom"><button onClick={signedIn ? signOut : signIn}>{signedIn ? `✓ ${profile?.email || 'Disconnect Google Drive'}` : '☁ Connect Google Drive'}</button><div className="storage"><span></span><div><strong>{signedIn ? 'Cloud vault' : 'Local vault'}</strong><small>{syncing ? 'Syncing…' : signedIn ? 'Private Google Drive storage' : 'Works offline'}</small></div></div></div></aside>
-    <main><header><div><p className="eyebrow">YOUR SPACE</p><h1>{view === 'all' ? 'Bookmarks' : nav.find(n => n.id === view)?.label}</h1></div><div className="avatar">{profile?.name?.[0] || 'Z'}</div></header>
-      <section className="hero"><div><span className="spark">✦</span><h2>Capture the web.<br/><i>Keep what matters.</i></h2><p>A private home for your links today, with notes, pages and whiteboards coming next.</p></div><div className="hero-orb"><span>✦</span></div></section>
-      <div className="toolbar"><div className="search"><span>⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search your bookmarks..."/><kbd>⌘ K</kbd></div></div>
-      <section className="add"><input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Paste a link to save it..."/><button onClick={add}>Add bookmark <span>↵</span></button></section>
-      <div className="section-title"><span>{filtered.length} {filtered.length === 1 ? 'bookmark' : 'bookmarks'}</span><span className="view-label">▦ Grid</span></div>
-      <div className="grid">{filtered.map(x => <article className="card" key={x.id}><div className="card-top"><img src={favicon(x.url)} onError={e => e.currentTarget.style.visibility = 'hidden'} /><button className={x.favorite ? 'fav on' : 'fav'} onClick={() => toggle(x.id)}>★</button></div><h3>{x.title}</h3><p>{domain(x.url)}</p><a href={x.url} target="_blank" rel="noreferrer">Open link ↗</a><div className="card-actions"><button onClick={() => share(x)}>Share</button><button onClick={() => remove(x.id)}>Delete</button></div></article>)}{!filtered.length && <div className="empty"><div>⌁</div><h3>Nothing here yet</h3><p>Add your first bookmark above.</p></div>}</div>
-    </main>{toast && <div className="toast">✓ {toast}</div>}
-  </div>
+  const title = view === 'home' ? 'Workspace' : nav.find(n => n.id === view)?.label || 'Workspace'
+  if (editing) return <div className="app"><aside className="sidebar"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><div className="nav">{nav.map(n => <button key={n.id} className={view === n.id ? 'active' : ''} onClick={() => { setEditing(null); setView(n.id) }}><b>{n.icon}</b>{n.label}</button>)}</div><div className="side-bottom"><button onClick={signedIn ? signOut : signIn}>{signedIn ? `✓ ${profile?.email || 'Disconnect Google Drive'}` : '☁ Connect Google Drive'}</button></div></aside><main><PageEditor page={editing} onChange={updateEditing} onBack={() => setEditing(null)} /></main>{toast && <div className="toast">✓ {toast}</div>}</div>
+  return <div className="app"><aside className="sidebar"><div className="brand"><span className="brand-mark">Z</span><span>zenith</span></div><div className="nav">{nav.map(n => <button key={n.id} className={view === n.id ? 'active' : ''} onClick={() => setView(n.id)}><b>{n.icon}</b>{n.label}{n.id === 'bookmarks' && <em>{counts.bookmarks}</em>}{n.id === 'notes' && <em>{counts.notes}</em>}{n.id === 'pages' && <em>{counts.pages}</em>}</button>)}</div><div className="create-menu"><button onClick={createNote}>＋ New note</button><button onClick={createPage}>＋ New page</button></div><div className="side-bottom"><button onClick={signedIn ? signOut : signIn}>{signedIn ? `✓ ${profile?.email || 'Disconnect Google Drive'}` : '☁ Connect Google Drive'}</button><div className="storage"><span></span><div><strong>{signedIn ? 'Cloud vault' : 'Local vault'}</strong><small>{syncing ? 'Syncing…' : signedIn ? 'Private Google Drive storage' : 'Works offline'}</small></div></div></div></aside>
+    <main><header><div><p className="eyebrow">YOUR SPACE</p><h1>{title}</h1></div><div className="avatar">{profile?.name?.[0] || 'Z'}</div></header>
+      {view === 'home' && <section className="hero"><div><span className="spark">✦</span><h2>Capture ideas.<br/><i>Keep what matters.</i></h2><p>One private workspace for bookmarks, notes, pages, tasks and everything worth remembering.</p><div className="hero-actions"><button onClick={createNote}>Write a note</button><button onClick={createPage}>Create a page</button></div></div><div className="hero-orb"><span>✦</span></div></section>}
+      <div className="toolbar"><div className="search"><span>⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search everything in Zenith..."/><kbd>⌘ K</kbd></div></div>
+      {(view === 'home' || view === 'bookmarks') && <section className="add"><input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addBookmark()} placeholder="Paste a link to save it..."/><button onClick={addBookmark}>Add bookmark <span>↵</span></button></section>}
+      <div className="section-title"><span>{filtered.length} {filtered.length === 1 ? 'item' : 'items'}</span><span className="view-label">⌁ Everything stays yours</span></div>
+      <div className="grid">{filtered.map(x => x.type === DOCUMENT_TYPES.BOOKMARK ? <article className="card" key={x.id}><div className="card-top"><img src={favicon(x.url)} onError={e => e.currentTarget.style.visibility = 'hidden'} /><button className={x.favorite ? 'fav on' : 'fav'} onClick={() => toggle(x.id)}>★</button></div><span className="type-pill">BOOKMARK</span><h3>{x.title}</h3><p>{domain(x.url)}</p><a href={x.url} target="_blank" rel="noreferrer">Open link ↗</a><div className="card-actions"><button onClick={() => share(x)}>Share</button><button onClick={() => remove(x.id)}>Delete</button></div></article> : <article className="card content-card" key={x.id} onClick={() => setEditing(x)}><span className="type-pill">{x.type.toUpperCase()}</span><h3>{x.title}</h3><p>{x.type === DOCUMENT_TYPES.NOTE ? (x.text || 'Empty note') : `${(x.blocks || []).length} block${(x.blocks || []).length === 1 ? '' : 's'}`}</p><span className="card-open">Open ↗</span><div className="card-actions"><button onClick={e => { e.stopPropagation(); toggle(x.id) }}>{x.favorite ? 'Unfavorite' : 'Favorite'}</button><button onClick={e => { e.stopPropagation(); remove(x.id) }}>Delete</button></div></article>)}{!filtered.length && <div className="empty"><div>✦</div><h3>Your workspace is empty</h3><p>Create a note, page, or save a link to start building your knowledge base.</p></div>}</div>
+    </main>{toast && <div className="toast">✓ {toast}</div></div>
 }
