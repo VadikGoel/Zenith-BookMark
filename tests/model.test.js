@@ -13,20 +13,24 @@ test('rejects unsupported documents', () => {
   assert.equal(normalizeDocument({ id: 'bad', title: 'Unknown' }), null)
 })
 
-test('creates documents with identity and timestamps', () => {
-  const document = createDocument(DOCUMENT_TYPES.PAGE, { title: 'My page' })
-  assert.equal(document.type, DOCUMENT_TYPES.PAGE)
-  assert.equal(document.title, 'My page')
-  assert.ok(document.id)
-  assert.ok(document.createdAt > 0)
-  assert.equal(document.createdAt, document.updatedAt)
+test('creates pages and notes with identity and timestamps', () => {
+  const page = createDocument(DOCUMENT_TYPES.PAGE, { title: 'My page' })
+  const note = createDocument(DOCUMENT_TYPES.NOTE, { title: 'My note', text: 'Hello' })
+  assert.equal(page.type, DOCUMENT_TYPES.PAGE)
+  assert.equal(note.type, DOCUMENT_TYPES.NOTE)
+  assert.equal(note.text, 'Hello')
+  assert.ok(page.id)
+  assert.ok(note.createdAt > 0)
+  assert.equal(page.createdAt, page.updatedAt)
 })
 
 test('normalizes arrays and filters invalid entries', () => {
   const documents = normalizeDocuments([
     { id: 'bookmark-1', url: 'https://example.com' },
+    { id: 'note-1', type: 'note', title: 'Idea', text: 'Remember this' },
     { id: 'invalid', title: 'No type' },
   ])
-  assert.equal(documents.length, 1)
+  assert.equal(documents.length, 2)
   assert.equal(documents[0].type, DOCUMENT_TYPES.BOOKMARK)
+  assert.equal(documents[1].type, DOCUMENT_TYPES.NOTE)
 })
